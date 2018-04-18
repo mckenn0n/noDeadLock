@@ -35,6 +35,7 @@ int ifEnoughToAlloc();
 void printNeedMatrix();
 void printAllocMatrix();
 void printAvailable();
+void printReqOrRelVector(int vec[]);
 void *customer(void* customerID);
 
 void *customer(void* customerID) {
@@ -56,6 +57,10 @@ void *customer(void* customerID) {
 				requestVector[i] = 0;
 			}
 		}
+
+
+		printf("**Customer %d is requesting ",customer_num);
+		printReqOrRelVector(requestVector);
 		//requestResource() will still return -1 when it fail and return 0 when succeed in allocate, like textbook says
 		//altough I put the error message output part in the requestResource function
 		requestResource(customer_num,requestVector);
@@ -90,7 +95,6 @@ int requestResource(int customer_num,int requestVector[])
 	if (ifGreaterThanNeed(customer_num,requestVector) == -1) {
 		return -1;
 	}
-	//whether request number of resources is greater than needed
 	if(ifEnoughToAlloc(requestVector) == -1) {
 		return -1;
 	}
@@ -99,7 +103,8 @@ int requestResource(int customer_num,int requestVector[])
 		needMatrix[customer_num][i] -= requestVector[i];
 		allocMatrix[customer_num][i] += requestVector[i];
 		available[i] -= requestVector[i];
-	}	
+	}
+	
 	//check if still in safe status
 	if (ifInSafeMode() == 0) {
 		printf("Available resources are:\n");
@@ -123,12 +128,15 @@ int releaseResource(int customer_num,int releaseVector[]) {
 	if(ifEnoughToRelease(customer_num,releaseVector) == -1) {
 		return -1;
 	}
+
 	//enough to release
 	for(i = 0; i < NUMBER_OF_RESOURCES; i++) {
 		allocMatrix[customer_num][i] -= releaseVector[i];
 		needMatrix[customer_num][i] += releaseVector[i];
 		available[i] += releaseVector[i];
 	}
+	printf("--Customer %d releases ",customer_num);
+	printReqOrRelVector(releaseVector);
 	printf("Available resources are:\n");
 	printAvailable();
 	printf("Allocated matrix is:\n");
@@ -173,7 +181,7 @@ int ifEnoughToAlloc(int requestVector[]) {
 
 void printNeedMatrix() {
 	for (i = 0; i < NUMBER_OF_CUSTOMERS; ++i) {
-		printf("P%d { ", i);
+		printf("Customer %d { ", i);
 		for (j = 0; j < NUMBER_OF_RESOURCES; ++j) {
 			printf("%d, ", needMatrix[i][j]);
 		}
@@ -184,7 +192,7 @@ void printNeedMatrix() {
 
 void printAllocMatrix() {
 	for (i = 0; i < NUMBER_OF_CUSTOMERS; ++i) {
-		printf("P%d { ", i);
+		printf("Customer %d { ", i);
 		for (j = 0; j < NUMBER_OF_RESOURCES; ++j) {
 			printf("%d, ", allocMatrix[i][j]);
 		}
@@ -201,6 +209,13 @@ void printAvailable() {
 	return;
 }
 
+void printReqOrRelVector(int vec[]) {
+	for (i = 0; i < NUMBER_OF_RESOURCES; ++i) {
+		printf("%d, ",vec[i]);
+	}
+	printf("\n");
+	return;
+}
 int ifInSafeMode() {
 	int ifFinish[NUMBER_OF_CUSTOMERS] =  {0};//there is no bool type in old C
 	int work[NUMBER_OF_RESOURCES];//temporary available resources vector
