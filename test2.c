@@ -21,7 +21,7 @@ pthread_mutex_t mutex;//mutex lock for access to global variable
 
 int initResourceVector [NUMBER_OF_RESOURCES];
 //available, max, allocation, need
-int availResourceVector [NUMBER_OF_RESOURCES];
+int available [NUMBER_OF_RESOURCES];
 int allocMatrix [NUMBER_OF_CUSTOMERS][NUMBER_OF_RESOURCES] =  { {1,1,0}, {1,3,0}, {0,0,2}, {0,1,1}, {0,2,0}};
 int maxMatrix [NUMBER_OF_CUSTOMERS][NUMBER_OF_RESOURCES] =  { {5,5,5}, {3,3,6}, {3,5,3}, {7,1,4}, {7,2,2}};
 int needMatrix [NUMBER_OF_CUSTOMERS][NUMBER_OF_RESOURCES];
@@ -35,7 +35,6 @@ int ifEnoughToAlloc();
 void printNeedMatrix();
 void printAllocMatrix();
 void printAvailable();
-void printReqOrRelVector(int vec[]);
 void *customer(void* customerID);
 
 void *customer(void* customerID) {
@@ -57,10 +56,6 @@ void *customer(void* customerID) {
 				requestVector[i] = 0;
 			}
 		}
-
-
-		printf("Customer %d is trying to request resources:\n",customer_num);
-		printReqOrRelVector(requestVector);
 		//requestResource() will still return -1 when it fail and return 0 when succeed in allocate, like textbook says
 		//altough I put the error message output part in the requestResource function
 		requestResource(customer_num,requestVector);
@@ -81,8 +76,6 @@ void *customer(void* customerID) {
 				releaseVector[i] = 0;
 			}
 		}
-		printf("Customer %d is trying to release resources:\n",customer_num);
-		printReqOrRelVector(releaseVector);
 		//releaseResource() will still return -1 when it fail and return 0 when succeed in allocate, like textbook says
 		//altough I put the error message output part in the releaseResource function
 		releaseResource(customer_num,releaseVector);
@@ -95,63 +88,52 @@ int requestResource(int customer_num,int requestVector[])
  {
 	//whether request number of resources is greater than needed
 	if (ifGreaterThanNeed(customer_num,requestVector) == -1) {
-		printf("requested resources is bigger than needed.\n");
 		return -1;
 	}
-	printf("Requested resources are not more than needed.\nPretend to allocate...\n");
-
 	//whether request number of resources is greater than needed
 	if(ifEnoughToAlloc(requestVector) == -1) {
-		printf("There is not enough resources for this process.\n");
 		return -1;
 	}
-
 	//pretend allocated
 	for (i = 0; i < NUMBER_OF_RESOURCES; ++i) {
 		needMatrix[customer_num][i] -= requestVector[i];
 		allocMatrix[customer_num][i] += requestVector[i];
-		availResourceVector[i] -= requestVector[i];
-	}
-	printf("Checking if it is still safe...\n");
-	
+		available[i] -= requestVector[i];
+	}	
 	//check if still in safe status
 	if (ifInSafeMode() == 0) {
-		printf("Safe. Allocated successfully.\nNow available resources vector is:\n");
+		printf("Available resources are:\n");
 		printAvailable();
-		printf("Now allocated matrix is:\n");
+		printf("Allocated matrix is:\n");
 		printAllocMatrix();
-		printf("Now need matrix is:\n");
+		printf("Need matrix is:\n");
 		printNeedMatrix();
 		return 0;
 	} else {
-		printf("It is not safe. Rolling back.\n");
 		for (i = 0; i < NUMBER_OF_RESOURCES; ++i) {
 			needMatrix[customer_num][i] += requestVector[i];
 			allocMatrix[customer_num][i] -= requestVector[i];
-			availResourceVector[i] += requestVector[i];
+			available[i] += requestVector[i];
 		}
-		printf("Rolled back successfully.\n");
 		return -1;
 	}
 }
 
 int releaseResource(int customer_num,int releaseVector[]) {
 	if(ifEnoughToRelease(customer_num,releaseVector) == -1) {
-		printf("The process do not own enough resources to release.\n");
 		return -1;
 	}
-
 	//enough to release
 	for(i = 0; i < NUMBER_OF_RESOURCES; i++) {
 		allocMatrix[customer_num][i] -= releaseVector[i];
 		needMatrix[customer_num][i] += releaseVector[i];
-		availResourceVector[i] += releaseVector[i];
+		available[i] += releaseVector[i];
 	}
-	printf("Release successfully.\nNow available resources vector is:\n");
+	printf("Available resources are:\n");
 	printAvailable();
-	printf("Now allocated matrix is:\n");
+	printf("Allocated matrix is:\n");
 	printAllocMatrix();
-	printf("Now need matrix is:\n");
+	printf("Need matrix is:\n");
 	printNeedMatrix();
 	return 0;
 }
@@ -180,7 +162,7 @@ int ifGreaterThanNeed(int customer_num,int requestVector[]) {
 int ifEnoughToAlloc(int requestVector[]) {
 	//first element of requestVector is customer_num
 	for (i = 0; i < NUMBER_OF_RESOURCES; ++i) {
-		if (requestVector[i] <= availResourceVector[i]) {
+		if (requestVector[i] <= available[i]) {
 			continue;
 		} else {
 			return -1;
@@ -191,7 +173,7 @@ int ifEnoughToAlloc(int requestVector[]) {
 
 void printNeedMatrix() {
 	for (i = 0; i < NUMBER_OF_CUSTOMERS; ++i) {
-		printf(" { ");
+		printf("P%d { ", i);
 		for (j = 0; j < NUMBER_OF_RESOURCES; ++j) {
 			printf("%d, ", needMatrix[i][j]);
 		}
@@ -202,7 +184,7 @@ void printNeedMatrix() {
 
 void printAllocMatrix() {
 	for (i = 0; i < NUMBER_OF_CUSTOMERS; ++i) {
-		printf(" { ");
+		printf("P%d { ", i);
 		for (j = 0; j < NUMBER_OF_RESOURCES; ++j) {
 			printf("%d, ", allocMatrix[i][j]);
 		}
@@ -213,24 +195,17 @@ void printAllocMatrix() {
 
 void printAvailable() {
 	for (i = 0; i < NUMBER_OF_RESOURCES; ++i) {
-		printf("%d, ",availResourceVector[i]);
+		printf("%d, ",available[i]);
 	}
 	printf("\n");
 	return;
 }
 
-void printReqOrRelVector(int vec[]) {
-	for (i = 0; i < NUMBER_OF_RESOURCES; ++i) {
-		printf("%d, ",vec[i]);
-	}
-	printf("\n");
-	return;
-}
 int ifInSafeMode() {
 	int ifFinish[NUMBER_OF_CUSTOMERS] =  {0};//there is no bool type in old C
 	int work[NUMBER_OF_RESOURCES];//temporary available resources vector
 	for(i = 0; i < NUMBER_OF_RESOURCES; i++) {
-		work[i] = availResourceVector[i];
+		work[i] = available[i];
 	}
 	int k;
 	for(i = 0; i < NUMBER_OF_CUSTOMERS; i++) {
@@ -282,7 +257,7 @@ int main(int argc, char const *argv[]) {
 	}
 	for(i = 0; i < NUMBER_OF_RESOURCES; i++) {
 		initResourceVector[i] = atoi(argv[i+1]);//argv[0] is name of program
-		availResourceVector[i] = initResourceVector[i];
+		available[i] = initResourceVector[i];
 	}
 
 	//initialize needMatrix
@@ -292,7 +267,7 @@ int main(int argc, char const *argv[]) {
 		}
 	}
 
-	printf("Available resources vector is:\n");
+	printf("Available resources are:\n");
 	printAvailable();
 
 	printf("Initial allocation matrix is:\n");
