@@ -1,4 +1,4 @@
-/*******************************************************************
+
 //This is a sample of banker's algorithm for OS deadlock prevention
 //Built by Ling He
 // 11/11/2015
@@ -7,7 +7,7 @@
 //customer0 function will randomly request and release resources
 //Now pthread library is used to run customer.
 //For synchronization, I used a mutex lock for request and release method and printf.
-*******************************************************************/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -19,146 +19,86 @@ int i = 0;//Switch on C99 mode or we cannot initialize variable in for loop
 int j = 0;
 pthread_mutex_t mutex;//mutex lock for access to global variable
 
-int initResourceVector [NUMBER_OF_RESOURCES];
 //available, max, allocation, need
-int available [NUMBER_OF_RESOURCES];
-int allocMatrix [NUMBER_OF_CUSTOMERS][NUMBER_OF_RESOURCES] =  { {1,1,0}, {1,3,0}, {0,0,2}, {0,1,1}, {0,2,0}};
-int maxMatrix [NUMBER_OF_CUSTOMERS][NUMBER_OF_RESOURCES] =  { {5,5,5}, {3,3,6}, {3,5,3}, {7,1,4}, {7,2,2}};
-int needMatrix [NUMBER_OF_CUSTOMERS][NUMBER_OF_RESOURCES];
+int available[NUMBER_OF_RESOURCES];
+pthread_t customers[NUMBER_OF_CUSTOMERS];
+int allocated[NUMBER_OF_CUSTOMERS][NUMBER_OF_RESOURCES] =  { {0,0,0}, {0,0,0}, {0,0,0}, {0,0,0}, {0,0,0}};
+int max[NUMBER_OF_CUSTOMERS][NUMBER_OF_RESOURCES] =  { {4,7,3}, {2,5,7}, {1,5,4}, {2,2,8}, {4,8,8}};
+int need[NUMBER_OF_CUSTOMERS][NUMBER_OF_RESOURCES];
 
-int requestResource(int customer_num,int requestVector[]);
-int releaseResource(int customer_num,int releaseVector[]);
-int ifGreaterThanNeed(int customer_num,int requestVector[]);
-int ifEnoughToRelease(int customer_num,int releaseVector[]);
-int ifInSafeMode();
-int ifEnoughToAlloc();
-void printNeedMatrix();
-void printAllocMatrix();
-void printAvailable();
-void printReqOrRelVector(int vec[]);
+void printVector(int vec[]);
+void printNeeded();
+void printAllocated();
 void *customer(void* customerID);
-
-void *customer(void* customerID) {
-	int customer_num = *(int*)customerID;
-
-	while(1) {
-		//request random number of resources
-		sleep(1);
-		int requestVector[NUMBER_OF_RESOURCES];
-
-		//Because i is global variable, we should lock from here
-		//lock mutex for accessing global variable and printf
-		pthread_mutex_lock(&mutex);
-		//initialize requestVector
-		for(i = 0; i < NUMBER_OF_RESOURCES; i++) {
-			if(needMatrix[customer_num][i] != 0) {
-				requestVector[i] = rand() % needMatrix[customer_num][i];
-			} else {
-				requestVector[i] = 0;
-			}
-		}
+int ifInSafeMode();
+int checkAvailable();
+int toMuch(int customerNumber,int request[]);
+int hasResorces(int customerNumber,int release[]);
+int requestResource(int customerNumber,int request[]);
+int releaseResource(int customerNumber,int release[]);
 
 
-		printf("**Customer %d is requesting ",customer_num);
-		printReqOrRelVector(requestVector);
-		//requestResource() will still return -1 when it fail and return 0 when succeed in allocate, like textbook says
-		//altough I put the error message output part in the requestResource function
-		requestResource(customer_num,requestVector);
-		//unlock
-		pthread_mutex_unlock(&mutex);
-	
-		//release random number of resources		
-		sleep(1);
-		int releaseVector[NUMBER_OF_RESOURCES];
-		//Because i is global variable, we should lock from here
-		//lock mutex for accessing global variable and printf
-		pthread_mutex_lock(&mutex);
-		//initialize releaseVector
-		for(i = 0; i < NUMBER_OF_RESOURCES; i++) {
-			if(allocMatrix[customer_num][i] != 0) {
-				releaseVector[i] = rand() % allocMatrix[customer_num][i];
-			} else {
-				releaseVector[i] = 0;
-			}
-		}
-		//releaseResource() will still return -1 when it fail and return 0 when succeed in allocate, like textbook says
-		//altough I put the error message output part in the releaseResource function
-		releaseResource(customer_num,releaseVector);
-		//unlock
-		pthread_mutex_unlock(&mutex);
-	}
-}
-
-int requestResource(int customer_num,int requestVector[])
- {
+int requestResource(int customerNumber,int request[]) {
 	//whether request number of resources is greater than needed
-	if (ifGreaterThanNeed(customer_num,requestVector) == -1) {
+	if (toMuch(customerNumber,request) == -1) {
 		return -1;
 	}
-	if(ifEnoughToAlloc(requestVector) == -1) {
+	if(checkAvailable(request) == -1) {
 		return -1;
 	}
 	//pretend allocated
 	for (i = 0; i < NUMBER_OF_RESOURCES; ++i) {
-		needMatrix[customer_num][i] -= requestVector[i];
-		allocMatrix[customer_num][i] += requestVector[i];
-		available[i] -= requestVector[i];
+		need[customerNumber][i] -= request[i];
+		allocated[customerNumber][i] += request[i];
+		available[i] -= request[i];
 	}
 	
 	//check if still in safe status
 	if (ifInSafeMode() == 0) {
+		printf("**Customer %d was granted ",customerNumber);
+		printVector(request);
 		printf("Available resources are:\n");
-		printAvailable();
+		printVector(available);
 		printf("Allocated matrix is:\n");
-		printAllocMatrix();
+		printAllocated();
 		printf("Need matrix is:\n");
-		printNeedMatrix();
+		printNeeded();
 		return 0;
 	} else {
 		for (i = 0; i < NUMBER_OF_RESOURCES; ++i) {
-			needMatrix[customer_num][i] += requestVector[i];
-			allocMatrix[customer_num][i] -= requestVector[i];
-			available[i] += requestVector[i];
+			need[customerNumber][i] += request[i];
+			allocated[customerNumber][i] -= request[i];
+			available[i] += request[i];
 		}
 		return -1;
 	}
 }
 
-int releaseResource(int customer_num,int releaseVector[]) {
-	if(ifEnoughToRelease(customer_num,releaseVector) == -1) {
+int releaseResource(int customerNumber,int release[]) {
+	if(hasResorces(customerNumber,release) == -1) {
 		return -1;
 	}
 
 	//enough to release
 	for(i = 0; i < NUMBER_OF_RESOURCES; i++) {
-		allocMatrix[customer_num][i] -= releaseVector[i];
-		needMatrix[customer_num][i] += releaseVector[i];
-		available[i] += releaseVector[i];
+		allocated[customerNumber][i] -= release[i];
+		need[customerNumber][i] += release[i];
+		available[i] += release[i];
 	}
-	printf("--Customer %d releases ",customer_num);
-	printReqOrRelVector(releaseVector);
+	printf("--Customer %d releases ",customerNumber);
+	printVector(release);
 	printf("Available resources are:\n");
-	printAvailable();
+	printVector(available);
 	printf("Allocated matrix is:\n");
-	printAllocMatrix();
+	printAllocated();
 	printf("Need matrix is:\n");
-	printNeedMatrix();
+	printNeeded();
 	return 0;
 }
 
-int ifEnoughToRelease(int customer_num,int releaseVector[]) {
+int hasResorces(int customerNumber,int release[]) {
 	for (i = 0; i < NUMBER_OF_RESOURCES; ++i) {
-		if (releaseVector[i] <= allocMatrix[customer_num][i]) {
-			continue;
-		} else {
-			return -1;
-		}
-	}
-	return 0;
-}
-int ifGreaterThanNeed(int customer_num,int requestVector[]) {
-	for (i = 0; i < NUMBER_OF_RESOURCES; ++i) {
-		if (requestVector[i] <= needMatrix[customer_num][i]) {
+		if (release[i] <= allocated[customerNumber][i]) {
 			continue;
 		} else {
 			return -1;
@@ -167,10 +107,10 @@ int ifGreaterThanNeed(int customer_num,int requestVector[]) {
 	return 0;
 }
 
-int ifEnoughToAlloc(int requestVector[]) {
-	//first element of requestVector is customer_num
-	for (i = 0; i < NUMBER_OF_RESOURCES; ++i) {
-		if (requestVector[i] <= available[i]) {
+int toMuch(int customerNumber,int request[]) {
+	int j;
+	for (j = 0; j < NUMBER_OF_RESOURCES; ++j) {
+		if (request[j] <= need[customerNumber][j]) {
 			continue;
 		} else {
 			return -1;
@@ -179,43 +119,58 @@ int ifEnoughToAlloc(int requestVector[]) {
 	return 0;
 }
 
-void printNeedMatrix() {
+int checkAvailable(int request[]) {
+	//first element of request is customerNumber
+	int j;
+	for (j = 0; j < NUMBER_OF_RESOURCES; ++j) {
+		if (request[j] <= available[j]) {
+			continue;
+		} else {
+			return -1;
+		}
+	}
+	return 0;
+}
+
+void printNeeded() {
 	for (i = 0; i < NUMBER_OF_CUSTOMERS; ++i) {
-		printf("Customer %d { ", i);
+		printf("Customer %d {", i);
 		for (j = 0; j < NUMBER_OF_RESOURCES; ++j) {
-			printf("%d, ", needMatrix[i][j]);
+			if(j){
+				printf(", ");
+			}
+			printf("%d", need[i][j]);
 		}
 		printf("}\n");
 	}
 	return;
 }
 
-void printAllocMatrix() {
+void printAllocated() {
 	for (i = 0; i < NUMBER_OF_CUSTOMERS; ++i) {
-		printf("Customer %d { ", i);
+		printf("Customer %d {", i);
 		for (j = 0; j < NUMBER_OF_RESOURCES; ++j) {
-			printf("%d, ", allocMatrix[i][j]);
+			if(j){
+				printf(", ");
+			}
+			printf("%d", allocated[i][j]);
 		}
 		printf("}\n");
 	}
 	return;
 }
 
-void printAvailable() {
+void printVector(int vec[]) {
 	for (i = 0; i < NUMBER_OF_RESOURCES; ++i) {
-		printf("%d, ",available[i]);
+		if(i){
+			printf(", ");
+		}
+		printf("%d",vec[i]);
 	}
 	printf("\n");
 	return;
 }
 
-void printReqOrRelVector(int vec[]) {
-	for (i = 0; i < NUMBER_OF_RESOURCES; ++i) {
-		printf("%d, ",vec[i]);
-	}
-	printf("\n");
-	return;
-}
 int ifInSafeMode() {
 	int ifFinish[NUMBER_OF_CUSTOMERS] =  {0};//there is no bool type in old C
 	int work[NUMBER_OF_RESOURCES];//temporary available resources vector
@@ -226,11 +181,11 @@ int ifInSafeMode() {
 	for(i = 0; i < NUMBER_OF_CUSTOMERS; i++) {
 		if (ifFinish[i] == 0) {
 			for(j = 0; j < NUMBER_OF_RESOURCES; j++) {
-				if(needMatrix[i][j] <= work[j]) {
+				if(need[i][j] <= work[j]) {
 					if(j == NUMBER_OF_RESOURCES - 1) {//means we checked whole vector, so this process can execute
 						ifFinish[i] = 1;
 						for (k = 0; k < NUMBER_OF_RESOURCES; ++k) {
-							work[k] += allocMatrix[i][k];
+							work[k] += allocated[i][k];
 							//execute and release resources
 						}
 						//if we break here, it will not check all process, so we should reset i to let it check from beginning
@@ -265,46 +220,95 @@ int ifInSafeMode() {
 	return 0;
 }
 
+void *customer(void* customerID) {
+	int customerNumber = *(int*)customerID;
+
+	while(1) {
+		//request random number of resources
+		sleep(1);
+		int request[NUMBER_OF_RESOURCES];
+
+		//Because i is global variable, we should lock from here
+		//lock mutex for accessing global variable and printf
+		pthread_mutex_lock(&mutex);
+		//initialize request
+		for(i = 0; i < NUMBER_OF_RESOURCES; i++) {
+			if(need[customerNumber][i] != 0) {
+				request[i] = rand() % need[customerNumber][i]+1;
+			} else {
+				request[i] = 0;
+			}
+		}
+
+
+		printf("!!Customer %d is requesting ",customerNumber);
+		printVector(request);
+		//requestResource() will still return -1 when it fail and return 0 when succeed in allocate, like textbook says
+		//altough I put the error message output part in the requestResource function
+		requestResource(customerNumber,request);
+		//unlock
+		pthread_mutex_unlock(&mutex);
+	
+		//release random number of resources		
+		sleep(1);
+		int release[NUMBER_OF_RESOURCES];
+		//Because i is global variable, we should lock from here
+		//lock mutex for accessing global variable and printf
+		pthread_mutex_lock(&mutex);
+		//initialize release
+		for(i = 0; i < NUMBER_OF_RESOURCES; i++) {
+			if(allocated[customerNumber][i] != 0) {
+				release[i] = rand() % allocated[customerNumber][i] + 1;
+			} else {
+				release[i] = 0;
+			}
+		}
+		//releaseResource() will still return -1 when it fail and return 0 when succeed in allocate, like textbook says
+		//altough I put the error message output part in the releaseResource function
+		releaseResource(customerNumber,release);
+		//unlock
+		pthread_mutex_unlock(&mutex);
+	}
+}
+
 int main(int argc, char const *argv[]) {
+	srand(time(NULL));
 	if(argc != NUMBER_OF_RESOURCES + 1) {
 		printf("Quantity of parameter is not correct.\n");
 		return -1;
 	}
 	for(i = 0; i < NUMBER_OF_RESOURCES; i++) {
-		initResourceVector[i] = atoi(argv[i+1]);//argv[0] is name of program
-		available[i] = initResourceVector[i];
+		available[i] = atoi(argv[i+1]);
 	}
 
-	//initialize needMatrix
+	//initialize need
 	for (i = 0; i < NUMBER_OF_CUSTOMERS; ++i) {
 		for (j = 0; j < NUMBER_OF_RESOURCES; ++j) {
-			needMatrix[i][j] = maxMatrix[i][j] - allocMatrix[i][j];
+			need[i][j] = max[i][j] - allocated[i][j];
 		}
 	}
 
 	printf("Available resources are:\n");
-	printAvailable();
+	printVector(available);
 
 	printf("Initial allocation matrix is:\n");
-	printAllocMatrix();
+	printAllocated();
 
 	printf("Initial need matrix is:\n");
-	printNeedMatrix();
+	printNeeded();
 
-	pthread_mutex_init(&mutex,NULL);//declared at head of code
-	pthread_attr_t attrDefault;
-	pthread_attr_init(&attrDefault);
-	pthread_t *tid = malloc(sizeof(pthread_t) * NUMBER_OF_CUSTOMERS);
-	int *pid = malloc(sizeof(int) * NUMBER_OF_CUSTOMERS);//customer's ID, for banker's algorithm, not pthread
-	//initialize pid and create threads
+	pthread_mutex_init(&mutex,NULL);
+	pthread_t *threadAddress = malloc(sizeof(pthread_t) * NUMBER_OF_CUSTOMERS);
+	int *cNumber = malloc(sizeof(int) * NUMBER_OF_CUSTOMERS);
 	for(i = 0; i < NUMBER_OF_CUSTOMERS; i++) {
-		*(pid + i) = i;
-		pthread_create((tid+i), &attrDefault, customer, (pid+i));
+		*(cNumber + i) = i;
+		pthread_create((threadAddress+i), NULL, customer, (cNumber+i));
 	}
-	//join threads
 	for(i = 0; i < NUMBER_OF_CUSTOMERS; i++) {
-		pthread_join(*(tid+i),NULL);
+		pthread_join(*(threadAddress+i),NULL);
 	}
+	free(cNumber);
+	free(threadAddress);
 	return 0;
 }
 
