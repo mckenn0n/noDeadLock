@@ -5,13 +5,11 @@
 #define NUMBER_OF_RESOURCES 3
 #define NUMBER_OF_CUSTOMERS 5
 
-int i = 0;//Switch on C99 mode or we cannot initialize variable in for loop
+int i = 0;
 int j = 0;
 pthread_mutex_t mutex;//mutex lock for access to global variable
 
-//available, max, allocation, need
 int available[NUMBER_OF_RESOURCES];
-pthread_t customers[NUMBER_OF_CUSTOMERS];
 int allocated[NUMBER_OF_CUSTOMERS][NUMBER_OF_RESOURCES] =  { {0,0,0}, {0,0,0}, {0,0,0}, {0,0,0}, {0,0,0}};
 int max[NUMBER_OF_CUSTOMERS][NUMBER_OF_RESOURCES] =  { {4,7,3}, {2,5,7}, {1,5,4}, {2,2,8}, {4,8,8}};
 int need[NUMBER_OF_CUSTOMERS][NUMBER_OF_RESOURCES];
@@ -36,14 +34,11 @@ int requestResource(int customerNumber,int request[]) {
 	if(checkAvailable(request) == -1) {
 		return -1;
 	}
-	//pretend allocated
 	for (i = 0; i < NUMBER_OF_RESOURCES; ++i) {
 		need[customerNumber][i] -= request[i];
 		allocated[customerNumber][i] += request[i];
 		available[i] -= request[i];
 	}
-	
-	//check if still in safe status
 	if (ifInSafeMode() == 0) {
 		printf("**Customer %d was granted ",customerNumber);
 		printVector(request);
@@ -88,9 +83,7 @@ int releaseResource(int customerNumber,int release[]) {
 
 int hasResorces(int customerNumber,int release[]) {
 	for (i = 0; i < NUMBER_OF_RESOURCES; ++i) {
-		if (release[i] <= allocated[customerNumber][i]) {
-			continue;
-		} else {
+		if (release[i] > allocated[customerNumber][i]) {
 			return -1;
 		}
 	}
@@ -100,9 +93,7 @@ int hasResorces(int customerNumber,int release[]) {
 int toMuch(int customerNumber,int request[]) {
 	int j;
 	for (j = 0; j < NUMBER_OF_RESOURCES; ++j) {
-		if (request[j] <= need[customerNumber][j]) {
-			continue;
-		} else {
+		if (request[j] > need[customerNumber][j]) {
 			return -1;
 		}
 	}
@@ -113,9 +104,7 @@ int checkAvailable(int request[]) {
 	//first element of request is customerNumber
 	int j;
 	for (j = 0; j < NUMBER_OF_RESOURCES; ++j) {
-		if (request[j] <= available[j]) {
-			continue;
-		} else {
+		if (request[j] > available[j]) {
 			return -1;
 		}
 	}
